@@ -1,0 +1,6 @@
+streamlit
+prophet
+pytz
+requests
+pandas
+numpy
