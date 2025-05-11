@@ -5,13 +5,13 @@ import numpy as np
 import requests
 import pytz
 import re
-
+import matplotlib.pyplot as plt
 from prophet import Prophet
 
 # ----------------------
 # CONFIGURATION
 # ----------------------
-API_KEY = "brof81kr451p8hbgilp1nebb87fhr0rs98sspc5sr4ej7acdqk06p1b61b5kdqj2"  # Replace with your actual Keepa API key
+API_KEY = "brof81kr451p8hbgilp1nebb87fhr0rs98sspc5sr4ej7acdqk06p1b61b5kdqj2"  # Replace with your real Keepa API key
 
 # ----------------------
 # Keepa API Extraction
@@ -43,11 +43,11 @@ def fetch_keepa_price_history(asin: str, api_key: str, domain: int = 3) -> pd.Da
     return pd.DataFrame(parsed_data)
 
 # ----------------------
-# Forecasting
+# Forecasting with Prophet
 # ----------------------
 def forecast_with_prophet(price_df: pd.DataFrame, forecast_days: int = 30) -> pd.DataFrame:
     df_daily = price_df.copy()
-    df_daily = df_daily.drop_duplicates(subset='date')  # 👈 remove duplicate days
+    df_daily = df_daily.drop_duplicates(subset='date')
     df_daily['date'] = pd.to_datetime(df_daily['date'])
     df_daily = df_daily.set_index('date').resample('D').ffill().dropna().reset_index()
     df_daily.rename(columns={'date': 'ds', 'price': 'y'}, inplace=True)
@@ -95,33 +95,24 @@ def get_upcoming_promotions(today):
     return results
 
 # ----------------------
-# Preprocessing for Classification & Charting
+# Preprocessing and Classification
 # ----------------------
 def preprocess_price_df(price_df):
     df = price_df.copy()
     df['date'] = pd.to_datetime(df['date'])
-
-    # Drop duplicates before resampling
     df = df.drop_duplicates(subset='date')
     df_daily = df.set_index('date').resample('D').ffill().dropna().reset_index()
     return df_daily
-    
-# ----------------------
-# Classification
-# ----------------------
-def classify_product_type(price_df):
-    df = preprocess_price_df(price_df)
-    df = df.drop_duplicates(subset='date')
-    df = df.sort_values('date')
 
-    if len(df) < 30:
+def classify_product_type(df_daily):
+    if len(df_daily) < 30:
         return "non-dynamic"
 
-    unique_prices = df['price'].nunique()
-    most_common_freq = df['price'].value_counts(normalize=True).iloc[0]
-
-    df['no_change'] = df['price'].diff().fillna(0) == 0
-    longest_static_stretch = df['no_change'].astype(int).groupby(df['no_change'].ne(df['no_change'].shift()).cumsum()).sum().max()
+    unique_prices = df_daily['price'].nunique()
+    most_common_freq = df_daily['price'].value_counts(normalize=True).iloc[0]
+    df_daily['no_change'] = df_daily['price'].diff().fillna(0) == 0
+    longest_static_stretch = df_daily['no_change'].astype(int).groupby(
+        df_daily['no_change'].ne(df_daily['no_change'].shift()).cumsum()).sum().max()
 
     if most_common_freq > 0.7 and unique_prices <= 3 and longest_static_stretch >= 14:
         return "non-dynamic"
@@ -149,28 +140,27 @@ if st.button("Generate Forecast"):
     else:
         st.info(f"Fetching price history for ASIN `{asin_input}` from Keepa...")
         price_df = fetch_keepa_price_history(asin_input, API_KEY)
-        st.write("📊 Price history preview:", price_df.head())
-
         if price_df.empty:
             st.error("No price data found for this product. Check the ASIN or tracking status in Keepa.")
         else:
             df_daily = preprocess_price_df(price_df)
-            
-            # Matplotlib step-style chart
-            import matplotlib.pyplot as plt
+
+            # Plot step-style chart
             fig, ax = plt.subplots(figsize=(10, 4))
             ax.plot(df_daily['date'], df_daily['price'], drawstyle='steps-post', color='dodgerblue')
-            ax.set_title("Price History (Keepa Style View)")
+            ax.set_title("Price History")
             ax.set_xlabel("Date")
             ax.set_ylabel("Price (€)")
             ax.grid(True)
             st.pyplot(fig)
-            
+
+            # Classification
             product_type = classify_product_type(df_daily)
+            st.markdown(f"### 🔍 Detected Product Type: `{product_type}`")
 
             if product_type == "dynamic":
                 st.success("Using time series forecasting model...")
-                forecast_df = forecast_with_prophet(price_df)
+                forecast_df = forecast_with_prophet(df_daily)
                 st.dataframe(forecast_df)
             else:
                 st.success("Using promotion calendar to detect upcoming price events...")
