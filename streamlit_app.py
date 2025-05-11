@@ -100,6 +100,9 @@ def get_upcoming_promotions(today):
 def preprocess_price_df(price_df):
     df = price_df.copy()
     df['date'] = pd.to_datetime(df['date'])
+
+    # Drop duplicates before resampling
+    df = df.drop_duplicates(subset='date')
     df_daily = df.set_index('date').resample('D').ffill().dropna().reset_index()
     return df_daily
     
