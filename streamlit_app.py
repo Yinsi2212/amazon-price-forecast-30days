@@ -98,19 +98,27 @@ def get_upcoming_promotions(today):
 # Classification
 # ----------------------
 def classify_product_type(price_df):
-    price_df = price_df.drop_duplicates(subset='date')
-    price_df = price_df.sort_values('date')
+    df = price_df.copy().drop_duplicates(subset='date')
+    df = df.sort_values('date')
 
-    if len(price_df) < 30:
-        return "promo"  # Not enough history to classify as dynamic
+    if len(df) < 30:
+        return "promo"  # Not enough history
 
-    daily_changes = price_df['price'].diff().abs()
-    change_ratio = (daily_changes > 1).mean()
-    
-    # DEBUG
-    print(f"Change ratio: {change_ratio:.2f}, Observations: {len(price_df)}")
+    # 1. Count number of distinct prices
+    unique_prices = df['price'].nunique()
 
-    return "dynamic" if change_ratio > 0.3 else "non-dynamic"
+    # 2. Share of time the most frequent price appears
+    most_common_freq = df['price'].value_counts(normalize=True).iloc[0]
+
+    # 3. Max number of consecutive days with no change
+    df['no_change'] = df['price'].diff().fillna(0) == 0
+    longest_static_stretch = df['no_change'].astype(int).groupby(df['no_change'].ne(df['no_change'].shift()).cumsum()).sum().max()
+
+    # 4. Heuristic logic
+    if most_common_freq > 0.7 and unique_prices <= 3 and longest_static_stretch >= 14:
+        return "non-dynamic"
+    else:
+        return "dynamic"
 
 # ----------------------
 # ASIN Extraction
