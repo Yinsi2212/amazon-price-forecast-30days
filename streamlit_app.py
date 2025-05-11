@@ -98,23 +98,23 @@ def get_upcoming_promotions(today):
 # Classification
 # ----------------------
 def classify_product_type(price_df):
-    price_df = price_df.copy()
-    price_df = price_df.drop_duplicates(subset='date')
-    price_df = price_df.sort_values('date')
-    price_df['change'] = price_df['price'].diff().abs()
-
-    # If not enough data, default to promo
-    if len(price_df) < 30:
-        return "promo"
-
-    # % of days with big changes
-    big_change_days = (price_df['change'] > 1).mean()
+    df = price_df.copy()
+    df = df.drop_duplicates(subset='date')
+    df = df.sort_values('date')
     
-    # How many unique prices are there?
-    unique_price_ratio = price_df['price'].nunique() / len(price_df)
+    # Calculate price change per day
+    df['price_change'] = df['price'].diff().abs()
+    change_count = (df['price_change'] > 1).sum()
+    total_days = len(df)
 
-    # Heuristic rules:
-    if big_change_days > 0.25 or unique_price_ratio > 0.4:
+    # Calculate how many unique price points exist
+    unique_price_ratio = df['price'].nunique() / total_days
+
+    # Heuristics
+    if total_days < 30:
+        return "promo"  # Not enough data to make it dynamic
+
+    if change_count / total_days > 0.3 or unique_price_ratio > 0.4:
         return "dynamic"
     else:
         return "non-dynamic"
