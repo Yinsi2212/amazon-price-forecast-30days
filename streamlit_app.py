@@ -120,7 +120,7 @@ def classify_product_type(price_df):
     # Average interval (in days) between changes
     avg_days_between_changes = len(df) / (change_days if change_days > 0 else 1)
 
-    if avg_days_between_changes > 3:
+    if avg_days_between_changes > 7:
         return "non-dynamic"
     else:
         return "dynamic"
