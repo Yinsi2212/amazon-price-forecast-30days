@@ -95,26 +95,31 @@ def get_upcoming_promotions(today):
     return results
 
 # ----------------------
+# Preprocessing for Classification & Charting
+# ----------------------
+def preprocess_price_df(price_df):
+    df = price_df.copy()
+    df['date'] = pd.to_datetime(df['date'])
+    df_daily = df.set_index('date').resample('D').ffill().dropna().reset_index()
+    return df_daily
+    
+# ----------------------
 # Classification
 # ----------------------
 def classify_product_type(price_df):
-    df = price_df.copy().drop_duplicates(subset='date')
+    df = preprocess_price_df(price_df)
+    df = df.drop_duplicates(subset='date')
     df = df.sort_values('date')
 
     if len(df) < 30:
-        return "promo"  # Not enough history
+        return "non-dynamic"
 
-    # 1. Count number of distinct prices
     unique_prices = df['price'].nunique()
-
-    # 2. Share of time the most frequent price appears
     most_common_freq = df['price'].value_counts(normalize=True).iloc[0]
 
-    # 3. Max number of consecutive days with no change
     df['no_change'] = df['price'].diff().fillna(0) == 0
     longest_static_stretch = df['no_change'].astype(int).groupby(df['no_change'].ne(df['no_change'].shift()).cumsum()).sum().max()
 
-    # 4. Heuristic logic
     if most_common_freq > 0.7 and unique_prices <= 3 and longest_static_stretch >= 14:
         return "non-dynamic"
     else:
@@ -146,9 +151,19 @@ if st.button("Generate Forecast"):
         if price_df.empty:
             st.error("No price data found for this product. Check the ASIN or tracking status in Keepa.")
         else:
-            st.line_chart(price_df.set_index('date')['price'])
-            product_type = classify_product_type(price_df)
-            st.markdown(f"**Detected Product Type:** `{product_type}`")
+            df_daily = preprocess_price_df(price_df)
+            
+            # Matplotlib step-style chart
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(df_daily['date'], df_daily['price'], drawstyle='steps-post', color='dodgerblue')
+            ax.set_title("Price History (Keepa Style View)")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Price (€)")
+            ax.grid(True)
+            st.pyplot(fig)
+            
+            product_type = classify_product_type(df_daily)
 
             if product_type == "dynamic":
                 st.success("Using time series forecasting model...")
