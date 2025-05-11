@@ -98,26 +98,19 @@ def get_upcoming_promotions(today):
 # Classification
 # ----------------------
 def classify_product_type(price_df):
-    df = price_df.copy()
-    df = df.drop_duplicates(subset='date')
-    df = df.sort_values('date')
+    price_df = price_df.drop_duplicates(subset='date')
+    price_df = price_df.sort_values('date')
+
+    if len(price_df) < 30:
+        return "promo"  # Not enough history to classify as dynamic
+
+    daily_changes = price_df['price'].diff().abs()
+    change_ratio = (daily_changes > 1).mean()
     
-    # Calculate price change per day
-    df['price_change'] = df['price'].diff().abs()
-    change_count = (df['price_change'] > 1).sum()
-    total_days = len(df)
+    # DEBUG
+    print(f"Change ratio: {change_ratio:.2f}, Observations: {len(price_df)}")
 
-    # Calculate how many unique price points exist
-    unique_price_ratio = df['price'].nunique() / total_days
-
-    # Heuristics
-    if total_days < 30:
-        return "promo"  # Not enough data to make it dynamic
-
-    if change_count / total_days > 0.3 or unique_price_ratio > 0.4:
-        return "dynamic"
-    else:
-        return "non-dynamic"
+    return "dynamic" if change_ratio > 0.3 else "promo"
 
 # ----------------------
 # ASIN Extraction
