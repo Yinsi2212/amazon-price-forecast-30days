@@ -98,9 +98,26 @@ def get_upcoming_promotions(today):
 # Classification
 # ----------------------
 def classify_product_type(price_df):
-    daily_changes = price_df['price'].diff().abs()
-    change_ratio = (daily_changes > 1).mean()
-    return "dynamic" if change_ratio > 0.3 else "promo"
+    price_df = price_df.copy()
+    price_df = price_df.drop_duplicates(subset='date')
+    price_df = price_df.sort_values('date')
+    price_df['change'] = price_df['price'].diff().abs()
+
+    # If not enough data, default to promo
+    if len(price_df) < 30:
+        return "promo"
+
+    # % of days with big changes
+    big_change_days = (price_df['change'] > 1).mean()
+    
+    # How many unique prices are there?
+    unique_price_ratio = price_df['price'].nunique() / len(price_df)
+
+    # Heuristic rules:
+    if big_change_days > 0.25 or unique_price_ratio > 0.4:
+        return "dynamic"
+    else:
+        return "non-dynamic"
 
 # ----------------------
 # ASIN Extraction
