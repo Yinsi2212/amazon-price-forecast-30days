@@ -110,7 +110,7 @@ def classify_product_type(price_df):
     # DEBUG
     print(f"Change ratio: {change_ratio:.2f}, Observations: {len(price_df)}")
 
-    return "dynamic" if change_ratio > 0.3 else "promo"
+    return "dynamic" if change_ratio > 0.3 else "non-dynamic"
 
 # ----------------------
 # ASIN Extraction
