@@ -104,17 +104,23 @@ def preprocess_price_df(price_df):
     df_daily = df.set_index('date').resample('D').ffill().dropna().reset_index()
     return df_daily
 
-def classify_product_type(df_daily):
-    if len(df_daily) < 30:
+def classify_product_type(price_df):
+    df = price_df.copy()
+    df['date'] = pd.to_datetime(df['date'])
+    df = df.drop_duplicates(subset='date')
+    df = df.set_index('date').resample('D').ffill().dropna().reset_index()
+
+    if len(df) < 30:
         return "non-dynamic"
 
-    unique_prices = df_daily['price'].nunique()
-    most_common_freq = df_daily['price'].value_counts(normalize=True).iloc[0]
-    df_daily['no_change'] = df_daily['price'].diff().fillna(0) == 0
-    longest_static_stretch = df_daily['no_change'].astype(int).groupby(
-        df_daily['no_change'].ne(df_daily['no_change'].shift()).cumsum()).sum().max()
+    # Count actual days with a price change
+    price_changes = df['price'].diff().abs() > 0.01
+    change_days = price_changes.sum()
 
-    if most_common_freq > 0.7 and unique_prices <= 3 and longest_static_stretch >= 14:
+    # Average interval (in days) between changes
+    avg_days_between_changes = len(df) / (change_days if change_days > 0 else 1)
+
+    if avg_days_between_changes > 3:
         return "non-dynamic"
     else:
         return "dynamic"
